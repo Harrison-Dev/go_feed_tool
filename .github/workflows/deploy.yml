@@ -22,7 +22,9 @@ jobs:
           gcloud functions deploy GetPlurkTop \
             --gen2 \
             --runtime go119 \
+            --region=asia-east1	 \
             --trigger-http \
+            --memory 128M \
             --source=. \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
@@ -30,7 +32,9 @@ jobs:
           gcloud functions deploy GetPlurkSearch \
             --gen2 \
             --runtime go119 \
+            --region=asia-east1	 \
             --trigger-http \
+            --memory 128M \
             --source=. \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
