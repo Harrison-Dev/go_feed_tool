@@ -22,13 +22,13 @@ jobs:
           gcloud functions deploy GetPlurkTop \
             --runtime go121 \
             --trigger-http \
-            --source=./src \
+            --source=. \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
 
           gcloud functions deploy GetPlurkSearch \
             --runtime go121 \
             --trigger-http \
-            --source=./src \
+            --source=. \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
