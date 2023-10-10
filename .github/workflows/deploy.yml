@@ -19,7 +19,12 @@ jobs:
 
       - name: Deploy to Google Cloud Functions
         run: |
-          gcloud functions deploy MyFunction \
+          gcloud functions deploy GetPlurkTop \
+            --runtime go113 \
+            --trigger-http \
+            --allow-unauthenticated
+
+          gcloud functions deploy GetPlurkSearch \
             --runtime go113 \
             --trigger-http \
             --allow-unauthenticated
