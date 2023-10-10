@@ -24,7 +24,8 @@ jobs:
             --runtime go119 \
             --region=asia-east1	 \
             --trigger-http \
-            --memory 128M \
+            --memory 128Mi \
+            --max-instances=10 \
             --source=. \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
@@ -34,7 +35,8 @@ jobs:
             --runtime go119 \
             --region=asia-east1	 \
             --trigger-http \
-            --memory 128M \
+            --memory 128Mi \
+            --max-instances=10 \
             --source=. \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
