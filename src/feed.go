@@ -19,13 +19,21 @@ type Plurk struct {
 	Posted  string `json:"posted"`
 }
 
+// 更新的 Stats 結構
 type Stats struct {
-	ID      int    `json:"id"`
-	Content string `json:"content"`
-	Posted  string `json:"posted"`
-	Owner   struct {
+	PlurkID    int    `json:"plurk_id"`
+	Posted     string `json:"posted"`
+	Content    string `json:"content"`
+	ContentRaw string `json:"content_raw"`
+	Owner      struct {
 		FullName string `json:"full_name"`
 	} `json:"owner"`
+}
+
+// 新的 StatEntry 結構
+type StatEntry struct {
+	Index int   `json:"index"`
+	Stats Stats `json:"stats"`
 }
 
 func getPlurkSearch(c *gin.Context) {
@@ -98,17 +106,32 @@ func getPlurkTop(c *gin.Context) {
 	defer resp.Body.Close()
 
 	var body struct {
-		Stats []Stats `json:"stats"` // Updated line
+		Stats [][]interface{} `json:"stats"` // 更新這裡
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	for _, stat := range body.Stats {
-		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(stat.ID), 36)
+	for _, statArray := range body.Stats {
+		if len(statArray) < 2 {
+			continue
+		}
+		statMap, ok := statArray[1].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		statBytes, err := json.Marshal(statMap)
+		if err != nil {
+			continue
+		}
+		var stat Stats
+		if err := json.Unmarshal(statBytes, &stat); err != nil {
+			continue
+		}
+
+		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(stat.PlurkID), 36)
 		posted, _ := time.Parse(time.RFC3339, stat.Posted)
-		// Clean up the HTML content
 		doc, err := goquery.NewDocumentFromReader(strings.NewReader(stat.Content))
 		if err != nil {
 			c.String(http.StatusInternalServerError, err.Error())
