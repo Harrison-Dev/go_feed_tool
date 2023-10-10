@@ -20,14 +20,14 @@ jobs:
       - name: Deploy to Google Cloud Functions
         run: |
           gcloud functions deploy GetPlurkTop \
-            --runtime go113 \
+            --runtime go121 \
             --trigger-http \
             --source=./src \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
 
           gcloud functions deploy GetPlurkSearch \
-            --runtime go113 \
+            --runtime go121 \
             --trigger-http \
             --source=./src \
             --entry-point GetPlurkTop \
