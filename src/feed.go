@@ -36,11 +36,50 @@ type StatEntry struct {
 	Stats Stats `json:"stats"`
 }
 
+// Gin handlers
 func getPlurkSearch(c *gin.Context) {
 	keyword := c.Query("keyword")
+	rss, err := processPlurkSearch(keyword)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.String(http.StatusOK, rss)
+}
 
-	urlStr := "https://www.plurk.com/Search/search2" // Renamed variable to urlStr
+func getPlurkTop(c *gin.Context) {
+	lang := c.Query("lang")
+	rss, err := processPlurkTop(lang)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.String(http.StatusOK, rss)
+}
 
+// Cloud Functions handlers
+func GetPlurkSearch(w http.ResponseWriter, r *http.Request) {
+	keyword := r.URL.Query().Get("keyword")
+	rss, err := processPlurkSearch(keyword)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(rss))
+}
+
+func GetPlurkTop(w http.ResponseWriter, r *http.Request) {
+	lang := r.URL.Query().Get("lang")
+	rss, err := processPlurkTop(lang)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(rss))
+}
+
+func processPlurkSearch(keyword string) (string, error) {
+	urlStr := "https://www.plurk.com/Search/search2"
 	feed := &feeds.Feed{
 		Title:       "Plurk Search - " + keyword,
 		Link:        &feeds.Link{Href: urlStr},
@@ -49,10 +88,9 @@ func getPlurkSearch(c *gin.Context) {
 		Created:     time.Now(),
 	}
 
-	resp, err := http.PostForm(urlStr, url.Values{"query": {keyword}}) // Updated to urlStr
+	resp, err := http.PostForm(urlStr, url.Values{"query": {keyword}})
 	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
+		return "", err
 	}
 	defer resp.Body.Close()
 
@@ -60,8 +98,7 @@ func getPlurkSearch(c *gin.Context) {
 		Plurks []Plurk `json:"plurks"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
+		return "", err
 	}
 
 	for _, p := range body.Plurks {
@@ -79,17 +116,13 @@ func getPlurkSearch(c *gin.Context) {
 
 	rss, err := feed.ToRss()
 	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
+		return "", err
 	}
-	c.String(http.StatusOK, rss)
+	return rss, nil
 }
 
-func getPlurkTop(c *gin.Context) {
-	lang := c.Query("lang")
-
+func processPlurkTop(lang string) (string, error) {
 	url := "https://www.plurk.com/Stats/topReplurks?period=day&lang=" + lang + "&limit=10"
-
 	feed := &feeds.Feed{
 		Title:       "Plurk Top (" + lang + ")",
 		Link:        &feeds.Link{Href: url},
@@ -100,17 +133,15 @@ func getPlurkTop(c *gin.Context) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	var body struct {
-		Stats [][]interface{} `json:"stats"` // 更新這裡
+		Stats [][]interface{} `json:"stats"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
+		return "", err
 	}
 
 	for _, statArray := range body.Stats {
@@ -134,8 +165,7 @@ func getPlurkTop(c *gin.Context) {
 		posted, _ := time.Parse(time.RFC3339, stat.Posted)
 		doc, err := goquery.NewDocumentFromReader(strings.NewReader(stat.Content))
 		if err != nil {
-			c.String(http.StatusInternalServerError, err.Error())
-			return
+			return "", err
 		}
 		content := doc.Text()
 		feed.Add(
@@ -151,8 +181,7 @@ func getPlurkTop(c *gin.Context) {
 
 	rss, err := feed.ToRss()
 	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
+		return "", err
 	}
-	c.String(http.StatusOK, rss)
+	return rss, nil
 }
