@@ -1,4 +1,4 @@
-module github.com/Harrison-Dev/go_feed_tool
+module Harrison-Dev/go_feed_tool
 
 go 1.19
 
