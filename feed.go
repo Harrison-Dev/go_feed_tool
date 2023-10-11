@@ -78,6 +78,14 @@ func GetPlurkTop(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(rss))
 }
 
+func trimTitleFromContent(textContent string, title string) string {
+	maxLen := 160
+	if len(textContent) > maxLen {
+		title = textContent[:maxLen] + "..."
+	}
+	return title
+}
+
 func processPlurkSearch(keyword string) (string, error) {
 	urlStr := "https://www.plurk.com/Search/search2"
 	feed := &feeds.Feed{
@@ -102,13 +110,21 @@ func processPlurkSearch(keyword string) (string, error) {
 	}
 
 	for _, p := range body.Plurks {
+		doc, err := goquery.NewDocumentFromReader(strings.NewReader(p.Content))
+		if err != nil {
+			return "", err // handle error
+		}
+		textContent := doc.Text()
+		title := textContent
+		title = trimTitleFromContent(textContent, title)
+
 		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(p.ID), 36)
 		posted, _ := time.Parse(time.RFC3339, p.Posted)
 		feed.Add(
 			&feeds.Item{
-				Title:       p.Content,
+				Title:       title,
 				Link:        &feeds.Link{Href: url},
-				Description: p.Content,
+				Description: p.Content, // keep original HTML content in description
 				Created:     posted,
 			},
 		)
@@ -168,9 +184,11 @@ func processPlurkTop(lang string) (string, error) {
 			return "", err
 		}
 		content := doc.Text()
+		title := content
+		title = trimTitleFromContent(content, title)
 		feed.Add(
 			&feeds.Item{
-				Title:       content,
+				Title:       title,
 				Link:        &feeds.Link{Href: url},
 				Description: content,
 				Author:      &feeds.Author{Name: stat.Owner.FullName},
