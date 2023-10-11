@@ -7,4 +7,5 @@ import (
 func init() {
 	functions.HTTP("GetPlurkSearch", GetPlurkSearch)
 	functions.HTTP("GetPlurkTop", GetPlurkTop)
+	functions.HTTP("GetPttSearch", GetPttSearch)
 }

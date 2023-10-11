@@ -12,5 +12,6 @@ func main() {
 	// r.GET("/feed", getFeed)
 	r.GET("/plurk_search", getPlurkSearch)
 	r.GET("/plurk_top", getPlurkTop)
+	r.GET("/ptt_search", getPttSearch)
 	r.Run(":8080")
 }

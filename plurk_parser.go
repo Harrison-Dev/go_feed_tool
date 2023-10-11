@@ -79,7 +79,7 @@ func GetPlurkTop(w http.ResponseWriter, r *http.Request) {
 }
 
 func trimTitleFromContent(textContent string, title string) string {
-	maxLen := 160
+	maxLen := 250
 	if len(textContent) > maxLen {
 		title = textContent[:maxLen] + "..."
 	}

@@ -43,3 +43,15 @@ jobs:
             --timeout=5s \
             --entry-point GetPlurkSearch \
             --allow-unauthenticated
+
+            gcloud functions deploy GetPttSearch \
+            --gen2 \
+            --runtime go119 \
+            --region=asia-east1	 \
+            --trigger-http \
+            --memory 128Mi \
+            --max-instances=10 \
+            --source=. \
+            --timeout=20s \
+            --entry-point GetPttSearch \
+            --allow-unauthenticated
