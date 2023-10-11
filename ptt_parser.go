@@ -96,17 +96,21 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 		layout := "Mon Jan 2 15:04:05 2006"
 		createdTime, err := time.Parse(layout, timeText)
 		if err != nil {
-			// handle error
+			return "", err // handle error
 		}
 
-		doc.Find("div#main-content").Children().Remove() // Remove all child elements
-		text := doc.Find("div#main-content").Text()      // Get remaining text
-		text = strings.TrimSpace(text)                   // Remove whitespace from the text
+		// Keep original html as the description
+		originalHtml, err := doc.Find("div#main-content").Html()
+		if err != nil {
+			return "", err // handle error
+		}
 
 		beptt_url := article.Url
 		beptt_url = strings.Replace(beptt_url, "www.ptt.cc/bbs", "bbs.beptt.cc", -1)
 
-		articles[i].Summary = text
+		// trim the string after "發信站: 批踢踢實業坊(ptt.cc),"
+		originalHtml = strings.Split(originalHtml, "發信站: 批踢踢實業坊(ptt.cc)")[0]
+		articles[i].Summary = originalHtml // Set the original HTML as the summary
 
 		feed.Add(&feeds.Item{
 			Title:       article.Title,
