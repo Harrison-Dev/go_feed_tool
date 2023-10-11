@@ -103,12 +103,7 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 		text := doc.Find("div#main-content").Text()      // Get remaining text
 		text = strings.TrimSpace(text)                   // Remove whitespace from the text
 
-		runeText := []rune(text)
-		if len(runeText) > 50 {
-			articles[i].Summary = string(runeText[:50])
-		} else {
-			articles[i].Summary = text
-		}
+		articles[i].Summary = text
 
 		feed.Add(&feeds.Item{
 			Title:       article.Title,
