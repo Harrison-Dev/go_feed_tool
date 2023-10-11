@@ -28,6 +28,7 @@ jobs:
             --memory 128Mi \
             --max-instances=10 \
             --source=. \
+            --timeout=5s \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
 
@@ -39,5 +40,6 @@ jobs:
             --memory 128Mi \
             --max-instances=10 \
             --source=. \
+            --timeout=5s \
             --entry-point GetPlurkTop \
             --allow-unauthenticated
