@@ -41,5 +41,5 @@ jobs:
             --max-instances=10 \
             --source=. \
             --timeout=5s \
-            --entry-point GetPlurkTop \
+            --entry-point GetPlurkSearch \
             --allow-unauthenticated
