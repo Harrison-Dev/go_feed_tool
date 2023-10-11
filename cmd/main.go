@@ -5,7 +5,7 @@ import (
 	"os"
 
 	// Blank-import the function package so the init() runs
-	_ "Harrison-Dev/go_feed_tool"
+	_ "github.com/Harrison-Dev/go_feed_tool"
 
 	"github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
 )
