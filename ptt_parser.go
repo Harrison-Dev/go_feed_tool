@@ -103,11 +103,14 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 		text := doc.Find("div#main-content").Text()      // Get remaining text
 		text = strings.TrimSpace(text)                   // Remove whitespace from the text
 
+		beptt_url := article.Url
+		beptt_url = strings.Replace(beptt_url, "www.ptt.cc/bbs", "bbs.beptt.cc", -1)
+
 		articles[i].Summary = text
 
 		feed.Add(&feeds.Item{
 			Title:       article.Title,
-			Link:        &feeds.Link{Href: article.Url},
+			Link:        &feeds.Link{Href: beptt_url},
 			Description: articles[i].Summary,
 			Author:      &feeds.Author{Name: author},
 			Created:     createdTime,
