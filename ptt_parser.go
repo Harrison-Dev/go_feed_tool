@@ -110,6 +110,11 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 
 		// trim the string after "發信站: 批踢踢實業坊(ptt.cc),"
 		originalHtml = strings.Split(originalHtml, "發信站: 批踢踢實業坊(ptt.cc)")[0]
+
+		// replace work = =
+		originalHtml = strings.Replace(originalHtml, "https://i.imgur.com/", "https://i.imgur.com/", -1)
+		originalHtml = strings.Replace(originalHtml, "\n", "<br>", -1)
+
 		articles[i].Summary = originalHtml // Set the original HTML as the summary
 
 		feed.Add(&feeds.Item{
