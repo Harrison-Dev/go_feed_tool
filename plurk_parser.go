@@ -120,11 +120,14 @@ func processPlurkSearch(keyword string) (string, error) {
 
 		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(p.ID), 36)
 		posted, _ := time.Parse(time.RFC3339, p.Posted)
+
+		desc := p.Content
+		desc = strings.Replace(desc, "\n", "<br>", -1)
 		feed.Add(
 			&feeds.Item{
 				Title:       title,
 				Link:        &feeds.Link{Href: url},
-				Description: p.Content, // keep original HTML content in description
+				Description: desc, // keep original HTML content in description
 				Created:     posted,
 			},
 		)
@@ -184,6 +187,7 @@ func processPlurkTop(lang string) (string, error) {
 			return "", err
 		}
 		content := doc.Text()
+		content = strings.Replace(content, "\n", "<br>", -1)
 		title := content
 		title = trimTitleFromContent(content, title)
 		feed.Add(
