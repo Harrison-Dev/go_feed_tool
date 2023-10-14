@@ -48,8 +48,8 @@ func getPlurkSearch(c *gin.Context) {
 }
 
 func getPlurkTop(c *gin.Context) {
-	lang := c.Query("lang")
-	rss, err := processPlurkTop(lang)
+	qType := c.Query("qType")
+	rss, err := processPlurkTop(qType)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
@@ -69,8 +69,8 @@ func GetPlurkSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetPlurkTop(w http.ResponseWriter, r *http.Request) {
-	lang := r.URL.Query().Get("lang")
-	rss, err := processPlurkTop(lang)
+	qType := r.URL.Query().Get("qType")
+	rss, err := processPlurkTop(qType)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -78,8 +78,9 @@ func GetPlurkTop(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(rss))
 }
 
-func trimTitleFromContent(textContent string, title string) string {
+func trimTitleFromContent(textContent string) string {
 	maxLen := 160
+	title := textContent
 	if len(textContent) > maxLen {
 		title = textContent[:maxLen] + "..."
 	}
@@ -116,7 +117,7 @@ func processPlurkSearch(keyword string) (string, error) {
 		}
 		textContent := doc.Text()
 		title := textContent
-		title = trimTitleFromContent(textContent, title)
+		title = trimTitleFromContent(textContent)
 
 		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(p.ID), 36)
 		posted, _ := time.Parse(time.RFC3339, p.Posted)
@@ -140,10 +141,12 @@ func processPlurkSearch(keyword string) (string, error) {
 	return rss, nil
 }
 
-func processPlurkTop(lang string) (string, error) {
-	url := "https://www.plurk.com/Stats/topReplurks?period=day&lang=" + lang + "&limit=10"
+func processPlurkTop(qType string) (string, error) {
+	url := "https://www.plurk.com/Stats/" + qType + "?period=day&lang=zh&limit=15"
+	println(qType)
+	println(url)
 	feed := &feeds.Feed{
-		Title:       "Plurk Top (" + lang + ")",
+		Title:       "Plurk Top",
 		Link:        &feeds.Link{Href: url},
 		Description: "Top replurks from Plurk",
 		Author:      &feeds.Author{Name: "Feed Generator"},
@@ -182,14 +185,16 @@ func processPlurkTop(lang string) (string, error) {
 
 		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(stat.PlurkID), 36)
 		posted, _ := time.Parse(time.RFC3339, stat.Posted)
-		doc, err := goquery.NewDocumentFromReader(strings.NewReader(stat.Content))
-		if err != nil {
-			return "", err
-		}
-		content := doc.Text()
-		content = strings.Replace(content, "\n", "<br>", -1)
-		title := content
-		title = trimTitleFromContent(content, title)
+		// doc, err := goquery.NewDocumentFromReader(strings.NewReader(stat.Content))
+		// if err != nil {
+		// 	return "", err
+		// }
+		content := stat.Content
+		// content = strings.Replace(content, "\n", "<br>", -1)
+
+		title := stat.ContentRaw
+		title = trimTitleFromContent(title)
+
 		feed.Add(
 			&feeds.Item{
 				Title:       title,
