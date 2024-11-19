@@ -3,5 +3,15 @@ services:
   feed-tool:
     build: .
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - feed-tool
     restart: always
