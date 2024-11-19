@@ -2,9 +2,9 @@ name: Deploy to Google Cloud Functions
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main  # Replace with your default branch if not "main"
+  # push:
+  #   branches:
+  #     - main  # Replace with your default branch if not "main"
 
 jobs:
   deploy:
