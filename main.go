@@ -3,8 +3,11 @@ package main
 import (
 	"net/http"
 
+	"github.com/Harrison-Dev/go_feed_tool/cache"
 	"github.com/gin-gonic/gin"
 )
+
+var feedCache = cache.NewFeedCache(100) // 設置最大緩存數為100
 
 func main() {
 	r := gin.Default()
