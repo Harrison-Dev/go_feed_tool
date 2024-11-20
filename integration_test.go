@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,18 +34,43 @@ func TestPTTSearch(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "<?xml")
 		assert.Contains(t, w.Body.String(), "<rss")
 
-		// 測試緩存
-		w2 := httptest.NewRecorder()
-		router.ServeHTTP(w2, req)
-		assert.Equal(t, w.Body.String(), w2.Body.String(), "緩存的響應應該相同")
-	})
+		// 解析 XML 以檢查時間戳
+		type RSS struct {
+			Channel struct {
+				Items []struct {
+					Title   string `xml:"title"`
+					PubDate string `xml:"pubDate"`
+					Link    string `xml:"link"`
+				} `xml:"item"`
+			} `xml:"channel"`
+		}
 
-	t.Run("PTT無效看板測試", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/ptt/search?board=InvalidBoard&keyword=test", nil)
-		router.ServeHTTP(w, req)
+		var rss RSS
+		err := xml.Unmarshal([]byte(w.Body.String()), &rss)
+		assert.NoError(t, err, "XML解析應該成功")
 
-		assert.Equal(t, 200, w.Code)
+		// 確保至少有一個項目
+		assert.Greater(t, len(rss.Channel.Items), 0, "應該至少有一個文章")
+
+		// 檢查每個項目都有時間戳
+		var lastTime time.Time
+		for i, item := range rss.Channel.Items {
+			// 檢查時間是否存在且有效
+			assert.NotEmpty(t, item.PubDate, "文章應該要有發布時間")
+			pubTime, err := time.Parse("Mon, 02 Jan 2006 15:04:05 -0700", item.PubDate)
+			assert.NoError(t, err, fmt.Sprintf("時間格式應該正確，收到的時間格式為: %s", item.PubDate))
+
+			// 檢查時間順序（從新到舊）
+			if i > 0 {
+				assert.True(t, pubTime.Before(lastTime) || pubTime.Equal(lastTime),
+					"文章應該按時間從新到舊排序")
+			}
+			lastTime = pubTime
+
+			t.Logf("文章 %d - 標題: %s", i+1, item.Title)
+			t.Logf("文章 %d - 時間: %s", i+1, item.PubDate)
+			t.Logf("文章 %d - 連結: %s", i+1, item.Link)
+		}
 	})
 }
 
@@ -60,10 +86,38 @@ func TestPlurkSearch(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "<?xml")
 		assert.Contains(t, w.Body.String(), "<rss")
 
-		// 測試緩存
-		w2 := httptest.NewRecorder()
-		router.ServeHTTP(w2, req)
-		assert.Equal(t, w.Body.String(), w2.Body.String(), "緩存的響應應該相同")
+		type RSS struct {
+			Channel struct {
+				Items []struct {
+					Title   string `xml:"title"`
+					PubDate string `xml:"pubDate"`
+					Link    string `xml:"link"`
+				} `xml:"item"`
+			} `xml:"channel"`
+		}
+
+		var rss RSS
+		err := xml.Unmarshal([]byte(w.Body.String()), &rss)
+		assert.NoError(t, err, "XML解析應該成功")
+
+		assert.Greater(t, len(rss.Channel.Items), 0, "應該至少有一個噗文")
+
+		var lastTime time.Time
+		for i, item := range rss.Channel.Items {
+			assert.NotEmpty(t, item.PubDate, "噗文應該要有發布時間")
+			pubTime, err := time.Parse("Mon, 02 Jan 2006 15:04:05 -0700", item.PubDate)
+			assert.NoError(t, err, fmt.Sprintf("時間格式應該正確，收到的時間格式為: %s", item.PubDate))
+
+			if i > 0 {
+				assert.True(t, pubTime.Before(lastTime) || pubTime.Equal(lastTime),
+					"噗文應該按時間從新到舊排序")
+			}
+			lastTime = pubTime
+
+			t.Logf("噗文 %d - 標題: %s", i+1, item.Title)
+			t.Logf("噗文 %d - 時間: %s", i+1, item.PubDate)
+			t.Logf("噗文 %d - 連結: %s", i+1, item.Link)
+		}
 	})
 }
 

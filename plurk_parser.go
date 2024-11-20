@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Harrison-Dev/go_feed_tool/cache"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/feeds"
@@ -90,20 +89,6 @@ func trimTitleFromContent(textContent string) string {
 }
 
 func processPlurkSearch(keyword string) (string, error) {
-	cacheKey := cache.CacheKey{
-		Type:    "plurk_search",
-		Keyword: keyword,
-	}
-
-	// 檢查緩存
-	if cachedFeed, exists := feedCache.Get(cacheKey); exists {
-		rss, err := cachedFeed.ToRss()
-		if err != nil {
-			return "", err
-		}
-		return rss, nil
-	}
-
 	urlStr := "https://www.plurk.com/Search/search2"
 	feed := &feeds.Feed{
 		Title:       "Plurk Search - " + keyword,
@@ -159,9 +144,6 @@ func processPlurkSearch(keyword string) (string, error) {
 		)
 	}
 
-	// 存入緩存
-	feedCache.Set(cacheKey, feed)
-
 	rss, err := feed.ToRss()
 	if err != nil {
 		return "", err
@@ -170,20 +152,6 @@ func processPlurkSearch(keyword string) (string, error) {
 }
 
 func processPlurkTop(qType string) (string, error) {
-	cacheKey := cache.CacheKey{
-		Type:    "plurk_top",
-		Keyword: qType,
-	}
-
-	// 檢查緩存
-	if cachedFeed, exists := feedCache.Get(cacheKey); exists {
-		rss, err := cachedFeed.ToRss()
-		if err != nil {
-			return "", err
-		}
-		return rss, nil
-	}
-
 	url := "https://www.plurk.com/Stats/" + qType + "?period=day&lang=zh&limit=15"
 	println(qType)
 	println(url)
@@ -252,9 +220,6 @@ func processPlurkTop(qType string) (string, error) {
 			},
 		)
 	}
-
-	// 存入緩存
-	feedCache.Set(cacheKey, feed)
 
 	rss, err := feed.ToRss()
 	if err != nil {

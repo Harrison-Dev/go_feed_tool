@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Harrison-Dev/go_feed_tool/cache"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/feeds"
@@ -46,20 +45,6 @@ func getPttSearch(c *gin.Context) {
 }
 
 func (p *PttParser) FetchArticles(board string, keyword string) (string, error) {
-	cacheKey := cache.CacheKey{
-		Type:    "ptt_search",
-		Keyword: board + ":" + keyword,
-	}
-
-	// 檢查緩存
-	if cachedFeed, exists := feedCache.Get(cacheKey); exists {
-		rss, err := cachedFeed.ToRss()
-		if err != nil {
-			return "", err
-		}
-		return rss, nil
-	}
-
 	searchUrl := fmt.Sprintf("https://www.ptt.cc/bbs/%s/search?q=%s", board, url.QueryEscape(keyword))
 	resp, err := p.HttpClient.Get(searchUrl)
 	if err != nil {
@@ -115,6 +100,8 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 			return "", err
 		}
 
+		fmt.Printf("標題: %s, 文章時間: %v, 網址: %s\n", article.Title, createdTime, article.Url)
+
 		// Keep original html as the description
 		originalHtml, err := doc.Find("div#main-content").Html()
 		if err != nil {
@@ -141,9 +128,6 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 			Created:     createdTime,
 		})
 	}
-
-	// 存入緩存
-	feedCache.Set(cacheKey, feed)
 
 	rss, err := feed.ToRss()
 	if err != nil {
