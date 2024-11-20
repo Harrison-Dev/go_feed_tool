@@ -45,7 +45,7 @@ func getPttSearch(c *gin.Context) {
 }
 
 func (p *PttParser) FetchArticles(board string, keyword string) (string, error) {
-	searchUrl := fmt.Sprintf("https://www.ptt.cc/bbs/%s/search?q=%s", board, url.QueryEscape(keyword))
+	searchUrl := fmt.Sprintf("https://www.ptt.cc/bbs/%s/search?page=1&q=%s", board, url.QueryEscape(keyword))
 	resp, err := p.HttpClient.Get(searchUrl)
 	if err != nil {
 		return "", err
