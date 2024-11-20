@@ -109,9 +109,10 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 		// Parse creation time
 		timeText := doc.Find("div.article-metaline span.article-meta-value").Last().Text()
 		layout := "Mon Jan 2 15:04:05 2006"
-		createdTime, err := time.Parse(layout, timeText)
+		taipeiLoc, _ := time.LoadLocation("Asia/Taipei")
+		createdTime, err := time.ParseInLocation(layout, timeText, taipeiLoc)
 		if err != nil {
-			return "", err // handle error
+			return "", err
 		}
 
 		// Keep original html as the description

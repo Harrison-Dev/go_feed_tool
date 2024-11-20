@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -128,14 +129,23 @@ func processPlurkSearch(keyword string) (string, error) {
 	for _, p := range body.Plurks {
 		doc, err := goquery.NewDocumentFromReader(strings.NewReader(p.Content))
 		if err != nil {
-			return "", err // handle error
+			return "", err
 		}
 		textContent := doc.Text()
-		title := textContent
-		title = trimTitleFromContent(textContent)
+		title := trimTitleFromContent(textContent)
 
 		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(p.ID), 36)
-		posted, _ := time.Parse(time.RFC3339, p.Posted)
+
+		// 修正時間解析，使用GMT格式
+		posted, err := time.Parse("Mon, 02 Jan 2006 15:04:05 GMT", p.Posted)
+		if err != nil {
+			fmt.Printf("時間解析錯誤: %v, 原始時間字串: %s\n", err, p.Posted)
+			continue
+		}
+
+		// 轉換為台北時區
+		taipeiLoc, _ := time.LoadLocation("Asia/Taipei")
+		postedTPE := posted.In(taipeiLoc)
 
 		desc := p.Content
 		desc = strings.Replace(desc, "\n", "<br>", -1)
@@ -143,8 +153,8 @@ func processPlurkSearch(keyword string) (string, error) {
 			&feeds.Item{
 				Title:       title,
 				Link:        &feeds.Link{Href: url},
-				Description: desc, // keep original HTML content in description
-				Created:     posted,
+				Description: desc,
+				Created:     postedTPE, // 使用台北時間
 			},
 		)
 	}
@@ -216,14 +226,19 @@ func processPlurkTop(qType string) (string, error) {
 		}
 
 		url := "https://www.plurk.com/p/" + strconv.FormatInt(int64(stat.PlurkID), 36)
-		posted, _ := time.Parse(time.RFC3339, stat.Posted)
-		// doc, err := goquery.NewDocumentFromReader(strings.NewReader(stat.Content))
-		// if err != nil {
-		// 	return "", err
-		// }
-		content := stat.Content
-		// content = strings.Replace(content, "\n", "<br>", -1)
 
+		// 修正時間解析
+		posted, err := time.Parse("Mon, 02 Jan 2006 15:04:05 GMT", stat.Posted)
+		if err != nil {
+			fmt.Printf("時間解析錯誤: %v, 原始時間字串: %s\n", err, stat.Posted)
+			continue
+		}
+
+		// 轉換為台北時區
+		taipeiLoc, _ := time.LoadLocation("Asia/Taipei")
+		postedTPE := posted.In(taipeiLoc)
+
+		content := stat.Content
 		title := stat.ContentRaw
 		title = trimTitleFromContent(title)
 
@@ -233,7 +248,7 @@ func processPlurkTop(qType string) (string, error) {
 				Link:        &feeds.Link{Href: url},
 				Description: content,
 				Author:      &feeds.Author{Name: stat.Owner.FullName},
-				Created:     posted,
+				Created:     postedTPE, // 使用台北時間
 			},
 		)
 	}
