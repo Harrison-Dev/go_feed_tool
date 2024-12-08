@@ -1,17 +1,19 @@
 version: '3'
+networks:
+  web:
+    external: true
+    name: traefik_web  
+
 services:
   feed-tool:
     build: .
-    ports:
-      - "127.0.0.1:8080:8080"
-    restart: always
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - feed-tool
+    expose:
+      - "8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.feed-tool.rule=Host(`[your-domain]`)"
+      - "traefik.http.routers.feed-tool.entrypoints=web"
+      - "traefik.http.services.feed-tool.loadbalancer.server.port=8080"
+    networks:
+      - web
     restart: always
