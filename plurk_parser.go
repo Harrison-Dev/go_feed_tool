@@ -89,6 +89,9 @@ func trimTitleFromContent(textContent string) string {
 }
 
 func processPlurkSearch(keyword string) (string, error) {
+	if keyword == "" {
+		return "", fmt.Errorf("error: search keyword cannot be empty")
+	}
 	urlStr := "https://www.plurk.com/Search/search2"
 	feed := &feeds.Feed{
 		Title:       "Plurk Search - " + keyword,
@@ -152,6 +155,9 @@ func processPlurkSearch(keyword string) (string, error) {
 }
 
 func processPlurkTop(qType string) (string, error) {
+	if qType != "topResponded" && qType != "hot" && qType != "favorite" {
+		return "", fmt.Errorf("error: invalid qType, must be one of: topResponded, hot, favorite")
+	}
 	url := "https://www.plurk.com/Stats/" + qType + "?period=day&lang=zh&limit=15"
 	println(qType)
 	println(url)
