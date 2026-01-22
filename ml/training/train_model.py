@@ -65,6 +65,11 @@ def train_model(X: np.ndarray, y: np.ndarray) -> xgb.XGBClassifier:
     Returns:
         Trained XGBClassifier
     """
+    # 計算類別權重: non-viral數量 / viral數量
+    neg_count = np.sum(y == 0)
+    pos_count = np.sum(y == 1)
+    scale_pos_weight = neg_count / pos_count if pos_count > 0 else 1.0
+
     model = xgb.XGBClassifier(
         n_estimators=100,
         max_depth=6,
@@ -72,6 +77,7 @@ def train_model(X: np.ndarray, y: np.ndarray) -> xgb.XGBClassifier:
         objective="binary:logistic",
         eval_metric="logloss",
         use_label_encoder=False,
+        scale_pos_weight=scale_pos_weight,  # 處理類別不平衡
     )
     model.fit(X, y)
     return model
