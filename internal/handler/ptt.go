@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/gin-gonic/gin"
 	"github.com/gorilla/feeds"
 )
 
@@ -16,10 +15,17 @@ type PttParser struct {
 	HttpClient *http.Client
 }
 
+type Article struct {
+	Title   string
+	Url     string
+	Summary string
+}
+
 func NewPttParser(client *http.Client) *PttParser {
 	return &PttParser{HttpClient: client}
 }
 
+// Cloud Functions handler
 func GetPttSearch(w http.ResponseWriter, r *http.Request) {
 	parser := NewPttParser(http.DefaultClient)
 	keyword := r.URL.Query().Get("keyword")
@@ -30,18 +36,6 @@ func GetPttSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte(rss))
-}
-
-func getPttSearch(c *gin.Context) {
-	parser := NewPttParser(http.DefaultClient)
-	keyword := c.Query("keyword")
-	board := c.Query("board")
-	rss, err := parser.FetchArticles(board, keyword)
-	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
-	}
-	c.String(http.StatusOK, rss)
 }
 
 func (p *PttParser) FetchArticles(board string, keyword string) (string, error) {
@@ -137,10 +131,4 @@ func (p *PttParser) FetchArticles(board string, keyword string) (string, error) 
 		return "", err
 	}
 	return rss, nil
-}
-
-type Article struct {
-	Title   string
-	Url     string
-	Summary string
 }

@@ -1,4 +1,4 @@
-package main
+package tests
 
 import (
 	"encoding/xml"
@@ -6,15 +6,42 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Harrison-Dev/go_feed_tool/internal/handler"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupRouter() *gin.Engine {
 	r := gin.Default()
-	r.GET("/ptt/search", getPttSearch)
-	r.GET("/plurk/search", getPlurkSearch)
-	r.GET("/plurk/top", getPlurkTop)
+	r.GET("/ptt/search", func(c *gin.Context) {
+		parser := handler.NewPttParser(http.DefaultClient)
+		keyword := c.Query("keyword")
+		board := c.Query("board")
+		rss, err := parser.FetchArticles(board, keyword)
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			return
+		}
+		c.String(http.StatusOK, rss)
+	})
+	r.GET("/plurk/search", func(c *gin.Context) {
+		keyword := c.Query("keyword")
+		rss, err := handler.ProcessPlurkSearch(keyword)
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			return
+		}
+		c.String(http.StatusOK, rss)
+	})
+	r.GET("/plurk/top", func(c *gin.Context) {
+		qType := c.Query("qType")
+		rss, err := handler.ProcessPlurkTop(qType)
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			return
+		}
+		c.String(http.StatusOK, rss)
+	})
 	return r
 }
 

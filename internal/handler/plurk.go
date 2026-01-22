@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/gin-gonic/gin"
 	"github.com/gorilla/feeds"
 )
 
@@ -37,31 +36,10 @@ type StatEntry struct {
 	Stats Stats `json:"stats"`
 }
 
-// Gin handlers
-func getPlurkSearch(c *gin.Context) {
-	keyword := c.Query("keyword")
-	rss, err := processPlurkSearch(keyword)
-	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
-	}
-	c.String(http.StatusOK, rss)
-}
-
-func getPlurkTop(c *gin.Context) {
-	qType := c.Query("qType")
-	rss, err := processPlurkTop(qType)
-	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
-	}
-	c.String(http.StatusOK, rss)
-}
-
 // Cloud Functions handlers
 func GetPlurkSearch(w http.ResponseWriter, r *http.Request) {
 	keyword := r.URL.Query().Get("keyword")
-	rss, err := processPlurkSearch(keyword)
+	rss, err := ProcessPlurkSearch(keyword)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -71,7 +49,7 @@ func GetPlurkSearch(w http.ResponseWriter, r *http.Request) {
 
 func GetPlurkTop(w http.ResponseWriter, r *http.Request) {
 	qType := r.URL.Query().Get("qType")
-	rss, err := processPlurkTop(qType)
+	rss, err := ProcessPlurkTop(qType)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -88,7 +66,7 @@ func trimTitleFromContent(textContent string) string {
 	return title
 }
 
-func processPlurkSearch(keyword string) (string, error) {
+func ProcessPlurkSearch(keyword string) (string, error) {
 	if keyword == "" {
 		return "", fmt.Errorf("error: search keyword cannot be empty")
 	}
@@ -154,7 +132,7 @@ func processPlurkSearch(keyword string) (string, error) {
 	return rss, nil
 }
 
-func processPlurkTop(qType string) (string, error) {
+func ProcessPlurkTop(qType string) (string, error) {
 	if qType != "topResponded" && qType != "hot" && qType != "favorite" {
 		return "", fmt.Errorf("error: invalid qType, must be one of: topResponded, hot, favorite")
 	}

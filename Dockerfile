@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine
+FROM golang:1.24-alpine
 
 WORKDIR /app
 
@@ -11,11 +11,8 @@ RUN go mod download
 # 複製源代碼
 COPY . .
 
-# 修改 package 名稱為 main
-RUN sed -i 's/package feed/package main/g' main.go ptt_parser.go plurk_parser.go
-
 # 編譯
-RUN go build -o main .
+RUN go build -o main ./cmd/server
 
 # 暴露端口
 EXPOSE 8080

@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/Harrison-Dev/go_feed_tool/internal/handler"
 	"github.com/gin-gonic/gin"
 )
 
@@ -12,7 +13,7 @@ func main() {
 	// Plurk 路由
 	r.GET("/plurk/search", func(c *gin.Context) {
 		keyword := c.Query("keyword")
-		rss, err := processPlurkSearch(keyword)
+		rss, err := handler.ProcessPlurkSearch(keyword)
 		if err != nil {
 			c.String(500, err.Error())
 			return
@@ -22,7 +23,7 @@ func main() {
 
 	r.GET("/plurk/top", func(c *gin.Context) {
 		qType := c.Query("qType")
-		rss, err := processPlurkTop(qType)
+		rss, err := handler.ProcessPlurkTop(qType)
 		if err != nil {
 			c.String(500, err.Error())
 			return
@@ -32,7 +33,7 @@ func main() {
 
 	// PTT 路由
 	r.GET("/ptt/search", func(c *gin.Context) {
-		parser := NewPttParser(http.DefaultClient)
+		parser := handler.NewPttParser(http.DefaultClient)
 		keyword := c.Query("keyword")
 		board := c.Query("board")
 		rss, err := parser.FetchArticles(board, keyword)
