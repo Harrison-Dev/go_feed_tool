@@ -100,13 +100,19 @@ def request_to_features(req: PredictRequest) -> list:
     push_ratio_15min = req.push_15min / total_15min if total_15min > 0 else 0.5
     comment_velocity = req.comments_15min / 15.0
 
+    # Estimate 5min comments (Go API may not provide this)
+    comments_5min = req.comments_15min // 3
+    velocity_ratio = comments_5min / req.comments_15min if req.comments_15min > 0 else 0.0
+
     # Map to feature vector in correct order
     features = {
         "comments_15min": req.comments_15min,
+        "comments_5min": comments_5min,
         "push_15min": req.push_15min,
         "boo_15min": req.boo_15min,
         "push_ratio_15min": push_ratio_15min,
         "comment_velocity": comment_velocity,
+        "velocity_ratio": velocity_ratio,
         "hour_of_day": req.hour_of_day,
         "day_of_week": req.day_of_week,
         "is_weekend": req.day_of_week >= 5,

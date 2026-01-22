@@ -59,6 +59,36 @@ def calc_comments_15min(post_time: str, comments: list[dict]) -> int:
     return count
 
 
+def calc_comments_5min(post_time: str, comments: list[dict]) -> int:
+    """Count comments within 5 minutes of post time."""
+    post_dt = datetime.fromisoformat(post_time)
+    cutoff = post_dt + timedelta(minutes=5)
+
+    count = 0
+    for comment in comments:
+        comment_time = comment.get("time")
+        if not comment_time:
+            continue
+
+        comment_dt = parse_comment_time(post_time, comment_time)
+        if comment_dt and comment_dt <= cutoff:
+            count += 1
+
+    return count
+
+
+def calc_velocity_ratio(comments_5min: int, comments_15min: int) -> float:
+    """
+    計算加速度比率: 前 5 分鐘佔比。
+
+    比率高 = 早期爆發力強
+    比率低 = 慢熱型
+    """
+    if comments_15min == 0:
+        return 0.0
+    return comments_5min / comments_15min
+
+
 def calc_push_boo_15min(post_time: str, comments: list[dict]) -> tuple[int, int]:
     """Count push and boo within 15 minutes of post time."""
     post_dt = datetime.fromisoformat(post_time)
@@ -132,10 +162,12 @@ def extract_features(article: dict) -> dict:
 
     # Early interaction features (15 min window)
     comments_15min = calc_comments_15min(post_time, comments)
+    comments_5min = calc_comments_5min(post_time, comments)
     push_15min, boo_15min = calc_push_boo_15min(post_time, comments)
     total_15min = push_15min + boo_15min
     push_ratio_15min = push_15min / total_15min if total_15min > 0 else 0.5
     comment_velocity = calc_comment_velocity(comments_15min)
+    velocity_ratio = calc_velocity_ratio(comments_5min, comments_15min)
 
     # Time features
     time_features = extract_time_features(post_time) if post_time else {
@@ -151,10 +183,12 @@ def extract_features(article: dict) -> dict:
     return {
         # Early interaction
         "comments_15min": comments_15min,
+        "comments_5min": comments_5min,
         "push_15min": push_15min,
         "boo_15min": boo_15min,
         "push_ratio_15min": push_ratio_15min,
         "comment_velocity": comment_velocity,
+        "velocity_ratio": velocity_ratio,
         # Time features
         **time_features,
         # Text features
@@ -165,10 +199,12 @@ def extract_features(article: dict) -> dict:
 # Feature names in order for model input
 FEATURE_NAMES = [
     "comments_15min",
+    "comments_5min",
     "push_15min",
     "boo_15min",
     "push_ratio_15min",
     "comment_velocity",
+    "velocity_ratio",
     "hour_of_day",
     "day_of_week",
     "is_weekend",
