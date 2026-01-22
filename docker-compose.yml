@@ -1,14 +1,23 @@
-version: '3'
+version: '3.8'
+
 networks:
   web:
     external: true
-    name: traefik_web  
+    name: traefik_web
+  internal:
+    driver: bridge
 
 services:
+  # Go Feed Tool - Main service
   feed-tool:
     build: .
     expose:
       - "8080"
+    depends_on:
+      predict-service:
+        condition: service_healthy
+    environment:
+      - PREDICT_SERVICE_URL=http://predict-service:5000
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.feed-tool.rule=Host(`[your-domain]`)"
@@ -16,4 +25,28 @@ services:
       - "traefik.http.services.feed-tool.loadbalancer.server.port=8080"
     networks:
       - web
+      - internal
+    restart: always
+
+  # Python Prediction Service - ML inference
+  predict-service:
+    build:
+      context: ./ml
+      dockerfile: inference/Dockerfile
+    expose:
+      - "5000"
+    volumes:
+      - ./ml/models:/app/models:ro
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - internal
     restart: always
