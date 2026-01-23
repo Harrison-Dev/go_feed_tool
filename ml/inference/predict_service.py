@@ -101,8 +101,19 @@ def load_model():
 
     for model_path in model_paths:
         if model_path.exists():
-            model = xgb.XGBClassifier()
-            model.load_model(str(model_path))
+            estimator = xgb.XGBClassifier()
+            # XGBoost 2.0+ does not set _estimator_type until after fit; loading a saved
+            # model requires priming the attribute to avoid TypeError during load_model.
+            if not getattr(estimator, "_estimator_type", None):
+                estimator._estimator_type = "classifier"
+
+            try:
+                estimator.load_model(str(model_path))
+            except TypeError:
+                estimator._estimator_type = "classifier"
+                estimator.load_model(str(model_path))
+
+            model = estimator
             print(f"Model loaded from: {model_path} (TIME_WINDOW={TIME_WINDOW}min)")
             return
 
@@ -162,6 +173,8 @@ async def startup_event():
         load_model()
     except FileNotFoundError as e:
         print(f"Warning: {e}")
+    except Exception as e:
+        print(f"Warning: Failed to load model: {e}")
 
 
 @app.get("/health", response_model=HealthResponse)
