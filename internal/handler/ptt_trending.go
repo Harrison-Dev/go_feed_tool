@@ -48,6 +48,7 @@ type PredictResponse struct {
 // TrendingArticle extends Article with prediction info
 type TrendingArticle struct {
 	Article
+	Author      string
 	PostTime    time.Time
 	Comments    []Comment
 	Probability float64
@@ -160,16 +161,13 @@ func (p *PttParser) FetchTrendingArticles(board string, threshold float64, limit
 		}
 	}
 
-	// 合併結果: 已爆文優先，再加潛在爆文
+	// 合併結果
 	var result []TrendingArticle
-
-	// 已爆文按推文數排序
-	sortByPushCount(viralArticles)
 	result = append(result, viralArticles...)
-
-	// 潛在爆文按機率排序
-	sortByProbability(potentialArticles)
 	result = append(result, potentialArticles...)
+
+	// 按發文時間排序（新的在前），與其他 API 一致
+	sortByPostTime(result)
 
 	// 限制數量
 	if len(result) > limit {
@@ -268,7 +266,10 @@ func (p *PttParser) fetchArticleDetails(article *TrendingArticle) error {
 		return err
 	}
 
-	// Parse post time
+	// Parse author (first meta value)
+	article.Author = doc.Find("div.article-metaline span.article-meta-value").First().Text()
+
+	// Parse post time (last meta value)
 	timeText := doc.Find("div.article-metaline span.article-meta-value").Last().Text()
 	layout := "Mon Jan 2 15:04:05 2006"
 	taipeiLoc, _ := time.LoadLocation("Asia/Taipei")
@@ -422,22 +423,11 @@ func callPredictService(req PredictRequest) (float64, error) {
 	return predictResp.Probability, nil
 }
 
-// sortByProbability sorts articles by probability descending
-func sortByProbability(articles []TrendingArticle) {
+// sortByPostTime sorts articles by post time descending (newest first)
+func sortByPostTime(articles []TrendingArticle) {
 	for i := 0; i < len(articles)-1; i++ {
 		for j := i + 1; j < len(articles); j++ {
-			if articles[j].Probability > articles[i].Probability {
-				articles[i], articles[j] = articles[j], articles[i]
-			}
-		}
-	}
-}
-
-// sortByPushCount sorts articles by push count descending
-func sortByPushCount(articles []TrendingArticle) {
-	for i := 0; i < len(articles)-1; i++ {
-		for j := i + 1; j < len(articles); j++ {
-			if articles[j].PushCount > articles[i].PushCount {
+			if articles[j].PostTime.After(articles[i].PostTime) {
 				articles[i], articles[j] = articles[j], articles[i]
 			}
 		}
@@ -472,10 +462,16 @@ func (p *PttParser) generateTrendingFeed(board string, threshold float64, articl
 			title = fmt.Sprintf("[📈%.0f%%] %s", article.Probability*100, article.Title)
 		}
 
+		// 清理 Description，與 ptt search API 格式一致
+		description := article.Summary
+		description = strings.Split(description, "發信站: 批踢踢實業坊(ptt.cc)")[0]
+		description = strings.Replace(description, "\n", "<br>", -1)
+
 		feed.Add(&feeds.Item{
 			Title:       title,
 			Link:        &feeds.Link{Href: bepttURL},
-			Description: article.Summary,
+			Description: description,
+			Author:      &feeds.Author{Name: article.Author},
 			Created:     article.PostTime,
 		})
 	}
