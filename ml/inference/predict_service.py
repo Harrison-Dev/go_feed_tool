@@ -12,6 +12,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import numpy as np
 import xgboost as xgb
 
 # Add parent directory to path for imports
@@ -112,6 +113,10 @@ def load_model():
             except TypeError:
                 estimator._estimator_type = "classifier"
                 estimator.load_model(str(model_path))
+
+            # Manually restore minimal sklearn attributes required for predict_proba
+            estimator.__dict__["n_classes_"] = 2
+            estimator.__dict__["classes_"] = np.array([0, 1])
 
             model = estimator
             print(f"Model loaded from: {model_path} (TIME_WINDOW={TIME_WINDOW}min)")

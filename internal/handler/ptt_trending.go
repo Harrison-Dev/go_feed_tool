@@ -17,10 +17,20 @@ import (
 
 // PredictService URL (configured via environment variable)
 var PredictServiceURL = getEnvOrDefault("PREDICT_SERVICE_URL", "http://localhost:5000")
+var predictionTimeWindow = getEnvInt("PREDICTION_TIME_WINDOW", 10) // minutes; should match model
 
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if v, err := strconv.Atoi(value); err == nil {
+			return v
+		}
 	}
 	return defaultValue
 }
@@ -30,9 +40,9 @@ type PredictRequest struct {
 	Board          string `json:"board"`
 	Title          string `json:"title"`
 	PostTime       string `json:"post_time"`
-	Comments15Min  int    `json:"comments_15min"`
-	Push15Min      int    `json:"push_15min"`
-	Boo15Min       int    `json:"boo_15min"`
+	CommentsWindow int    `json:"comments_window"`
+	PushWindow     int    `json:"push_window"`
+	BooWindow      int    `json:"boo_window"`
 	HourOfDay      int    `json:"hour_of_day"`
 	DayOfWeek      int    `json:"day_of_week"`
 	TitleLength    int    `json:"title_length"`
@@ -121,7 +131,7 @@ func (p *PttParser) FetchTrendingArticles(board string, threshold float64, limit
 	var viralArticles []TrendingArticle
 	var potentialArticles []TrendingArticle
 
-	cutoffTime := time.Now().Add(-15 * time.Minute)
+	cutoffTime := time.Now().Add(-time.Duration(predictionTimeWindow) * time.Minute)
 	maxPotentialAge := time.Now().Add(-2 * time.Hour) // 潛在爆文最多看 2 小時內
 
 	for _, article := range articles {
@@ -313,17 +323,17 @@ func (p *PttParser) fetchArticleDetails(article *TrendingArticle) error {
 // predictViral calls the prediction service
 func (p *PttParser) predictViral(board string, article *TrendingArticle) (float64, error) {
 	// Calculate 15-minute features
-	cutoff := article.PostTime.Add(15 * time.Minute)
-	var comments15Min, push15Min, boo15Min int
+	cutoff := article.PostTime.Add(time.Duration(predictionTimeWindow) * time.Minute)
+	var commentsWindow, pushWindow, booWindow int
 
 	for _, c := range article.Comments {
 		commentTime := parseCommentTime(article.PostTime, c.Time)
 		if commentTime.Before(cutoff) || commentTime.Equal(cutoff) {
-			comments15Min++
+			commentsWindow++
 			if c.Type == "推" {
-				push15Min++
+				pushWindow++
 			} else if c.Type == "噓" {
-				boo15Min++
+				booWindow++
 			}
 		}
 	}
@@ -338,9 +348,9 @@ func (p *PttParser) predictViral(board string, article *TrendingArticle) (float6
 		Board:          board,
 		Title:          article.Title,
 		PostTime:       article.PostTime.Format(time.RFC3339),
-		Comments15Min:  comments15Min,
-		Push15Min:      push15Min,
-		Boo15Min:       boo15Min,
+		CommentsWindow: commentsWindow,
+		PushWindow:     pushWindow,
+		BooWindow:      booWindow,
 		HourOfDay:      article.PostTime.Hour(),
 		DayOfWeek:      int(article.PostTime.Weekday()),
 		TitleLength:    len(article.Title),
