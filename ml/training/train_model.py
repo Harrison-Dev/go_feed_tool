@@ -10,7 +10,13 @@ from pathlib import Path
 import numpy as np
 import xgboost as xgb
 
-from feature_engineering import extract_features, get_feature_vector
+from feature_engineering import (
+    extract_features,
+    extract_features_with_window,
+    get_feature_vector,
+    get_feature_names,
+    SUPPORTED_WINDOWS,
+)
 
 
 def load_dataset(file_path: str) -> list[dict]:
@@ -35,9 +41,15 @@ def time_split(articles: list[dict], split_date: str) -> tuple[list[dict], list[
     return train, test
 
 
-def prepare_training_data(articles: list[dict]) -> tuple[np.ndarray, np.ndarray]:
+def prepare_training_data(
+    articles: list[dict], time_window: int = 15
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Extract features and labels from articles.
+
+    Args:
+        articles: List of article dicts
+        time_window: Time window in minutes for feature extraction
 
     Returns:
         (X, y) where X is feature matrix and y is label array
@@ -46,8 +58,8 @@ def prepare_training_data(articles: list[dict]) -> tuple[np.ndarray, np.ndarray]
     y = []
 
     for article in articles:
-        features = extract_features(article)
-        vector = get_feature_vector(features)
+        features = extract_features_with_window(article, time_window=time_window)
+        vector = get_feature_vector(features, time_window=time_window)
         X.append(vector)
         y.append(1 if article.get("is_viral") else 0)
 
@@ -101,12 +113,26 @@ def main():
 
     parser = argparse.ArgumentParser(description="Train viral post prediction model")
     parser.add_argument("--data", required=True, help="Path to training data JSON")
-    parser.add_argument("--output", default="../models/viral_predictor.json", help="Output model path")
+    parser.add_argument("--output", default=None, help="Output model path (auto-generated if not specified)")
     parser.add_argument("--split-date", default="2025-12-01", help="Train/test split date")
+    parser.add_argument(
+        "--time-window",
+        type=int,
+        default=15,
+        choices=SUPPORTED_WINDOWS,
+        help=f"Time window in minutes for feature extraction (choices: {SUPPORTED_WINDOWS})",
+    )
 
     args = parser.parse_args()
 
-    print(f"Loading data from {args.data}...")
+    # Auto-generate output path if not specified
+    if args.output is None:
+        args.output = f"../models/viral_predictor_{args.time_window}min.json"
+
+    print(f"=== Training with {args.time_window}-minute window ===")
+    print(f"Features: {get_feature_names(args.time_window)[:5]}...")  # Show first 5
+
+    print(f"\nLoading data from {args.data}...")
     articles = load_dataset(args.data)
     print(f"Loaded {len(articles)} articles")
 
@@ -115,8 +141,8 @@ def main():
     print(f"Train: {len(train_articles)}, Test: {len(test_articles)}")
 
     print("Preparing training data...")
-    X_train, y_train = prepare_training_data(train_articles)
-    X_test, y_test = prepare_training_data(test_articles)
+    X_train, y_train = prepare_training_data(train_articles, time_window=args.time_window)
+    X_test, y_test = prepare_training_data(test_articles, time_window=args.time_window)
 
     print(f"Training features shape: {X_train.shape}")
     print(f"Viral ratio in train: {y_train.mean():.2%}")
@@ -130,7 +156,7 @@ def main():
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
 
-    print("\n=== Test Results ===")
+    print(f"\n=== Test Results ({args.time_window}-min window) ===")
     print(f"Accuracy: {accuracy_score(y_test, y_pred):.2%}")
     print(f"Precision: {precision_score(y_test, y_pred, zero_division=0):.2%}")
     print(f"Recall: {recall_score(y_test, y_pred, zero_division=0):.2%}")

@@ -41,12 +41,12 @@ def parse_comment_time(post_time_str: str, comment_time_str: str) -> Optional[da
         return None
 
 
-def calc_comments_15min(post_time: str, comments: list[dict]) -> int:
-    """Count comments within 15 minutes of post time."""
+def calc_comments_in_window(post_time: str, comments: list[dict], minutes: int) -> int:
+    """Count comments within specified minutes of post time."""
     if not post_time:
         return 0
     post_dt = datetime.fromisoformat(post_time)
-    cutoff = post_dt + timedelta(minutes=15)
+    cutoff = post_dt + timedelta(minutes=minutes)
 
     count = 0
     for comment in comments:
@@ -59,46 +59,45 @@ def calc_comments_15min(post_time: str, comments: list[dict]) -> int:
             count += 1
 
     return count
+
+
+def calc_comments_15min(post_time: str, comments: list[dict]) -> int:
+    """Count comments within 15 minutes of post time."""
+    return calc_comments_in_window(post_time, comments, 15)
 
 
 def calc_comments_5min(post_time: str, comments: list[dict]) -> int:
     """Count comments within 5 minutes of post time."""
-    if not post_time:
-        return 0
-    post_dt = datetime.fromisoformat(post_time)
-    cutoff = post_dt + timedelta(minutes=5)
-
-    count = 0
-    for comment in comments:
-        comment_time = comment.get("time")
-        if not comment_time:
-            continue
-
-        comment_dt = parse_comment_time(post_time, comment_time)
-        if comment_dt and comment_dt <= cutoff:
-            count += 1
-
-    return count
+    return calc_comments_in_window(post_time, comments, 5)
 
 
-def calc_velocity_ratio(comments_5min: int, comments_15min: int) -> float:
+def calc_velocity_ratio(comments_early: int, comments_window: int) -> float:
     """
-    計算加速度比率: 前 5 分鐘佔比。
+    計算加速度比率: 早期佔比。
 
     比率高 = 早期爆發力強
     比率低 = 慢熱型
     """
-    if comments_15min == 0:
+    if comments_window == 0:
         return 0.0
-    return comments_5min / comments_15min
+    return comments_early / comments_window
 
 
-def calc_push_boo_15min(post_time: str, comments: list[dict]) -> tuple[int, int]:
-    """Count push and boo within 15 minutes of post time."""
+# Supported time windows
+SUPPORTED_WINDOWS = [5, 10, 15]
+
+# Early window for velocity ratio (always use half of the main window, minimum 2 minutes)
+def get_early_window(main_window: int) -> int:
+    """Get early window size for velocity ratio calculation."""
+    return max(2, main_window // 2)
+
+
+def calc_push_boo_in_window(post_time: str, comments: list[dict], minutes: int) -> tuple[int, int]:
+    """Count push and boo within specified minutes of post time."""
     if not post_time:
         return 0, 0
     post_dt = datetime.fromisoformat(post_time)
-    cutoff = post_dt + timedelta(minutes=15)
+    cutoff = post_dt + timedelta(minutes=minutes)
 
     push_count = 0
     boo_count = 0
@@ -119,9 +118,14 @@ def calc_push_boo_15min(post_time: str, comments: list[dict]) -> tuple[int, int]
     return push_count, boo_count
 
 
-def calc_comment_velocity(comments_15min: int) -> float:
-    """Calculate comments per minute in first 15 minutes."""
-    return comments_15min / 15.0
+def calc_push_boo_15min(post_time: str, comments: list[dict]) -> tuple[int, int]:
+    """Count push and boo within 15 minutes of post time."""
+    return calc_push_boo_in_window(post_time, comments, 15)
+
+
+def calc_comment_velocity(comments_count: int, minutes: int) -> float:
+    """Calculate comments per minute in the given time window."""
+    return comments_count / float(minutes)
 
 
 def extract_time_features(post_time: str) -> dict:
@@ -162,9 +166,13 @@ def extract_text_features(title: str, content: str) -> dict:
     }
 
 
-def extract_features(article: dict) -> dict:
+def extract_features_with_window(article: dict, time_window: int = 15) -> dict:
     """
-    Extract all features from an article dictionary.
+    Extract all features from an article dictionary with configurable time window.
+
+    Args:
+        article: Article dictionary with post_time, comments, title, content
+        time_window: Time window in minutes (5, 10, or 15)
 
     Returns a dict with all feature values.
     """
@@ -173,14 +181,15 @@ def extract_features(article: dict) -> dict:
     title = article.get("title", "")
     content = article.get("content", "")
 
-    # Early interaction features (15 min window)
-    comments_15min = calc_comments_15min(post_time, comments)
-    comments_5min = calc_comments_5min(post_time, comments)
-    push_15min, boo_15min = calc_push_boo_15min(post_time, comments)
-    total_15min = push_15min + boo_15min
-    push_ratio_15min = push_15min / total_15min if total_15min > 0 else 0.5
-    comment_velocity = calc_comment_velocity(comments_15min)
-    velocity_ratio = calc_velocity_ratio(comments_5min, comments_15min)
+    # Early interaction features (configurable window)
+    early_window = get_early_window(time_window)
+    comments_window = calc_comments_in_window(post_time, comments, time_window)
+    comments_early = calc_comments_in_window(post_time, comments, early_window)
+    push_window, boo_window = calc_push_boo_in_window(post_time, comments, time_window)
+    total_window = push_window + boo_window
+    push_ratio = push_window / total_window if total_window > 0 else 0.5
+    comment_velocity = calc_comment_velocity(comments_window, time_window)
+    velocity_ratio = calc_velocity_ratio(comments_early, comments_window)
 
     # Time features
     time_features = extract_time_features(post_time) if post_time else {
@@ -194,12 +203,12 @@ def extract_features(article: dict) -> dict:
     text_features = extract_text_features(title, content)
 
     return {
-        # Early interaction
-        "comments_15min": comments_15min,
-        "comments_5min": comments_5min,
-        "push_15min": push_15min,
-        "boo_15min": boo_15min,
-        "push_ratio_15min": push_ratio_15min,
+        # Early interaction (named with window suffix for clarity)
+        f"comments_{time_window}min": comments_window,
+        f"comments_{early_window}min": comments_early,
+        f"push_{time_window}min": push_window,
+        f"boo_{time_window}min": boo_window,
+        f"push_ratio_{time_window}min": push_ratio,
         "comment_velocity": comment_velocity,
         "velocity_ratio": velocity_ratio,
         # Time features
@@ -209,35 +218,64 @@ def extract_features(article: dict) -> dict:
     }
 
 
-# Feature names in order for model input
-FEATURE_NAMES = [
-    "comments_15min",
-    "comments_5min",
-    "push_15min",
-    "boo_15min",
-    "push_ratio_15min",
-    "comment_velocity",
-    "velocity_ratio",
-    "hour_of_day",
-    "day_of_week",
-    "is_weekend",
-    "is_prime_time",
-    "title_length",
-    "has_tag",
-    "has_image",
-    "content_length",
-]
+def extract_features(article: dict) -> dict:
+    """
+    Extract all features from an article dictionary (default 15-min window).
+
+    Returns a dict with all feature values.
+    """
+    # Use 15-min window for backward compatibility
+    return extract_features_with_window(article, time_window=15)
 
 
-def get_feature_vector(features: dict) -> list:
+def get_feature_names(time_window: int = 15) -> list[str]:
+    """
+    Get feature names for the specified time window.
+
+    Args:
+        time_window: Time window in minutes (5, 10, or 15)
+
+    Returns:
+        List of feature names in order for model input
+    """
+    early_window = get_early_window(time_window)
+    return [
+        f"comments_{time_window}min",
+        f"comments_{early_window}min",
+        f"push_{time_window}min",
+        f"boo_{time_window}min",
+        f"push_ratio_{time_window}min",
+        "comment_velocity",
+        "velocity_ratio",
+        "hour_of_day",
+        "day_of_week",
+        "is_weekend",
+        "is_prime_time",
+        "title_length",
+        "has_tag",
+        "has_image",
+        "content_length",
+    ]
+
+
+# Default feature names for backward compatibility (15-min window)
+FEATURE_NAMES = get_feature_names(15)
+
+
+def get_feature_vector(features: dict, time_window: int = 15) -> list:
     """
     Convert feature dict to numeric vector for model input.
+
+    Args:
+        features: Feature dictionary
+        time_window: Time window in minutes (default 15)
 
     Converts booleans to int (0/1).
     Excludes tag_type (categorical - would need encoding).
     """
+    feature_names = get_feature_names(time_window)
     vector = []
-    for name in FEATURE_NAMES:
+    for name in feature_names:
         value = features.get(name, 0)
         # Convert bool to int
         if isinstance(value, bool):

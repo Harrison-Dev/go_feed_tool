@@ -16,12 +16,20 @@ import xgboost as xgb
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from training.feature_engineering import FEATURE_NAMES
+from training.feature_engineering import get_feature_names, get_early_window, SUPPORTED_WINDOWS
+
+# Time window configuration (default 10 minutes, can be set via env var)
+TIME_WINDOW = int(os.environ.get("PREDICTION_TIME_WINDOW", "10"))
+if TIME_WINDOW not in SUPPORTED_WINDOWS:
+    raise ValueError(f"TIME_WINDOW must be one of {SUPPORTED_WINDOWS}, got {TIME_WINDOW}")
+
+EARLY_WINDOW = get_early_window(TIME_WINDOW)
+FEATURE_NAMES = get_feature_names(TIME_WINDOW)
 
 app = FastAPI(
     title="PTT Viral Predictor",
-    description="Predict probability of PTT articles becoming viral",
-    version="1.0.0",
+    description=f"Predict probability of PTT articles becoming viral (using {TIME_WINDOW}-min window)",
+    version="2.0.0",
 )
 
 # Global model instance
@@ -34,9 +42,13 @@ class PredictRequest(BaseModel):
     board: str
     title: str
     post_time: str
-    comments_15min: int
-    push_15min: int
-    boo_15min: int
+    # Window-based metrics (use whatever window the server is configured for)
+    comments_window: int  # Comments in the configured time window
+    push_window: int      # Push count in the window
+    boo_window: int       # Boo count in the window
+    # Optional: early window metrics for velocity ratio (estimated if not provided)
+    comments_early: Optional[int] = None
+    # Time features
     hour_of_day: int
     day_of_week: int
     title_length: int
@@ -67,6 +79,8 @@ class HealthResponse(BaseModel):
 
     status: str
     model_loaded: bool
+    time_window: int
+    early_window: int
 
 
 def load_model():
@@ -76,18 +90,20 @@ def load_model():
     if model is not None:
         return
 
-    # Try multiple model paths
+    # Try multiple model paths (prefer time-window-specific model)
     model_paths = [
+        Path(__file__).parent.parent / "models" / f"viral_predictor_{TIME_WINDOW}min.json",
         Path(__file__).parent.parent / "models" / "viral_predictor_final.json",
         Path(__file__).parent.parent / "models" / "viral_predictor.json",
-        Path("/app/models/viral_predictor.json"),  # Docker path
+        Path(f"/app/models/viral_predictor_{TIME_WINDOW}min.json"),  # Docker path
+        Path("/app/models/viral_predictor.json"),  # Docker path fallback
     ]
 
     for model_path in model_paths:
         if model_path.exists():
             model = xgb.XGBClassifier()
             model.load_model(str(model_path))
-            print(f"Model loaded from: {model_path}")
+            print(f"Model loaded from: {model_path} (TIME_WINDOW={TIME_WINDOW}min)")
             return
 
     raise FileNotFoundError(f"Model file not found in any of: {model_paths}")
@@ -96,21 +112,26 @@ def load_model():
 def request_to_features(req: PredictRequest) -> list:
     """Convert prediction request to feature vector"""
     # Calculate derived features
-    total_15min = req.push_15min + req.boo_15min
-    push_ratio_15min = req.push_15min / total_15min if total_15min > 0 else 0.5
-    comment_velocity = req.comments_15min / 15.0
+    total_window = req.push_window + req.boo_window
+    push_ratio = req.push_window / total_window if total_window > 0 else 0.5
+    comment_velocity = req.comments_window / float(TIME_WINDOW)
 
-    # Estimate 5min comments (Go API may not provide this)
-    comments_5min = req.comments_15min // 3
-    velocity_ratio = comments_5min / req.comments_15min if req.comments_15min > 0 else 0.0
+    # Estimate early window comments if not provided
+    # (assume linear distribution, scale by early_window/time_window)
+    if req.comments_early is not None:
+        comments_early = req.comments_early
+    else:
+        comments_early = int(req.comments_window * (EARLY_WINDOW / TIME_WINDOW))
 
-    # Map to feature vector in correct order
+    velocity_ratio = comments_early / req.comments_window if req.comments_window > 0 else 0.0
+
+    # Map to feature vector in correct order (using dynamic feature names)
     features = {
-        "comments_15min": req.comments_15min,
-        "comments_5min": comments_5min,
-        "push_15min": req.push_15min,
-        "boo_15min": req.boo_15min,
-        "push_ratio_15min": push_ratio_15min,
+        f"comments_{TIME_WINDOW}min": req.comments_window,
+        f"comments_{EARLY_WINDOW}min": comments_early,
+        f"push_{TIME_WINDOW}min": req.push_window,
+        f"boo_{TIME_WINDOW}min": req.boo_window,
+        f"push_ratio_{TIME_WINDOW}min": push_ratio,
         "comment_velocity": comment_velocity,
         "velocity_ratio": velocity_ratio,
         "hour_of_day": req.hour_of_day,
@@ -146,7 +167,12 @@ async def startup_event():
 @app.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint"""
-    return HealthResponse(status="ok", model_loaded=model is not None)
+    return HealthResponse(
+        status="ok",
+        model_loaded=model is not None,
+        time_window=TIME_WINDOW,
+        early_window=EARLY_WINDOW,
+    )
 
 
 @app.post("/predict", response_model=PredictResponse)
