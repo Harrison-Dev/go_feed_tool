@@ -43,6 +43,8 @@ def parse_comment_time(post_time_str: str, comment_time_str: str) -> Optional[da
 
 def calc_comments_15min(post_time: str, comments: list[dict]) -> int:
     """Count comments within 15 minutes of post time."""
+    if not post_time:
+        return 0
     post_dt = datetime.fromisoformat(post_time)
     cutoff = post_dt + timedelta(minutes=15)
 
@@ -61,6 +63,8 @@ def calc_comments_15min(post_time: str, comments: list[dict]) -> int:
 
 def calc_comments_5min(post_time: str, comments: list[dict]) -> int:
     """Count comments within 5 minutes of post time."""
+    if not post_time:
+        return 0
     post_dt = datetime.fromisoformat(post_time)
     cutoff = post_dt + timedelta(minutes=5)
 
@@ -91,6 +95,8 @@ def calc_velocity_ratio(comments_5min: int, comments_15min: int) -> float:
 
 def calc_push_boo_15min(post_time: str, comments: list[dict]) -> tuple[int, int]:
     """Count push and boo within 15 minutes of post time."""
+    if not post_time:
+        return 0, 0
     post_dt = datetime.fromisoformat(post_time)
     cutoff = post_dt + timedelta(minutes=15)
 
@@ -120,6 +126,13 @@ def calc_comment_velocity(comments_15min: int) -> float:
 
 def extract_time_features(post_time: str) -> dict:
     """Extract time-based features from post time."""
+    if not post_time:
+        return {
+            "hour_of_day": 12,
+            "day_of_week": 0,
+            "is_weekend": False,
+            "is_prime_time": False,
+        }
     dt = datetime.fromisoformat(post_time)
 
     return {
