@@ -120,15 +120,46 @@ go_feed_tool/
 
 預測系統使用 XGBoost 模型，根據文章前 15 分鐘的互動數據預測是否會爆文：
 
-**特徵:**
-- 前 15 分鐘推/噓/箭頭數
-- 發文時間 (小時、星期幾)
-- 標題長度、標籤類型
-- 是否有圖片
+**特徵 (15 個):**
+- 前 5/15 分鐘留言數、推/噓數
+- 留言速度 (velocity)、加速度比率 (velocity_ratio)
+- 發文時間 (小時、星期幾、是否週末、黃金時段)
+- 標題長度、標籤類型、是否有圖片、內文長度
 
-**效能 (0.5 門檻):**
-- Precision: ~61%
-- Recall: ~67%
+**模型效能 (5-Fold Cross Validation):**
+| 指標 | 數值 |
+|------|------|
+| Accuracy | 84.3% |
+| Precision | 67.2% |
+| Recall | 72.0% |
+| F1 | 69.3% |
+| AUC | 0.922 |
+
+**訓練資料:** 1000 篇文章 (246 爆文 / 754 一般)
+
+### ML 腳本使用
+
+```bash
+cd ml/scripts
+
+# 查看資料集統計
+python data_stats.py
+
+# 合併所有資料集並去重
+python data_stats.py --merge
+
+# 增量爬取新文章 (避免重複)
+python incremental_crawl.py --target 1500
+
+# 指定看板和延遲 (避免被 ban)
+python incremental_crawl.py --target 2000 --boards Gossiping Stock --delay-min 3.0 --delay-max 5.0
+```
+
+**重新訓練模型:**
+```bash
+cd ml/training
+python train_model.py --data ../data/ptt_articles_merged.json --output ../models/viral_predictor.json
+```
 
 ## 本地運行
 
