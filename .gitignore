@@ -1,0 +1,29 @@
+tmpclaude*
+
+# Go
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+coverage.out
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.venv/
+venv/
+env/
+.env/
+build/
+dist/
+*.egg-info/
+*.egg
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+ml/data/*
