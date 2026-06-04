@@ -17,9 +17,9 @@ class TestPredictEndpoint:
             "board": "C_Chat",
             "title": "[閒聊] 今天的動畫好好看",
             "post_time": "2026-01-22T20:00:00",
-            "comments_15min": 10,
-            "push_15min": 8,
-            "boo_15min": 1,
+            "comments_window": 10,
+            "push_window": 8,
+            "boo_window": 1,
             "hour_of_day": 20,
             "day_of_week": 3,
             "title_length": 15,
@@ -40,9 +40,9 @@ class TestPredictEndpoint:
             "board": "C_Chat",
             "title": "[爆卦] 大新聞",
             "post_time": "2026-01-22T20:00:00",
-            "comments_15min": 50,
-            "push_15min": 45,
-            "boo_15min": 2,
+            "comments_window": 50,
+            "push_window": 45,
+            "boo_window": 2,
             "hour_of_day": 20,
             "day_of_week": 3,
             "title_length": 10,
@@ -62,9 +62,9 @@ class TestPredictEndpoint:
             "board": "C_Chat",
             "title": "[問題] 請問一下",
             "post_time": "2026-01-22T04:00:00",
-            "comments_15min": 1,
-            "push_15min": 0,
-            "boo_15min": 0,
+            "comments_window": 1,
+            "push_window": 0,
+            "boo_window": 0,
             "hour_of_day": 4,
             "day_of_week": 1,
             "title_length": 8,
@@ -88,6 +88,27 @@ class TestPredictEndpoint:
 
         response = client.post("/predict", json=incomplete_data)
         assert response.status_code == 422
+
+    def test_predict_accepts_legacy_window_fields(self, client):
+        """POST /predict should accept the pre-v2 time-window field names."""
+        request_data = {
+            "board": "C_Chat",
+            "title": "[閒聊] Legacy schema",
+            "post_time": "2026-01-22T20:00:00",
+            "comments_15min": 10,
+            "push_15min": 8,
+            "boo_15min": 1,
+            "hour_of_day": 20,
+            "day_of_week": 3,
+            "title_length": 15,
+            "has_image": False,
+            "tag_type": "閒聊",
+        }
+
+        response = client.post("/predict", json=request_data)
+
+        assert response.status_code == 200
+        assert "probability" in response.json()
 
 
 class TestHealthEndpoint:
@@ -120,9 +141,9 @@ class TestBatchPredict:
                 "board": "C_Chat",
                 "title": "[閒聊] Test 1",
                 "post_time": "2026-01-22T20:00:00",
-                "comments_15min": 10,
-                "push_15min": 8,
-                "boo_15min": 1,
+                "comments_window": 10,
+                "push_window": 8,
+                "boo_window": 1,
                 "hour_of_day": 20,
                 "day_of_week": 3,
                 "title_length": 12,
@@ -133,9 +154,9 @@ class TestBatchPredict:
                 "board": "Stock",
                 "title": "[標的] Test 2",
                 "post_time": "2026-01-22T10:00:00",
-                "comments_15min": 5,
-                "push_15min": 3,
-                "boo_15min": 1,
+                "comments_window": 5,
+                "push_window": 3,
+                "boo_window": 1,
                 "hour_of_day": 10,
                 "day_of_week": 3,
                 "title_length": 12,

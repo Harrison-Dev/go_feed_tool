@@ -96,7 +96,7 @@ func TestCallPredictService(t *testing.T) {
 		}
 
 		// Return mock probability based on engagement
-		prob := float64(req.Comments15Min) / 100.0
+		prob := float64(req.CommentsWindow) / 100.0
 		if prob > 1.0 {
 			prob = 0.95
 		}
@@ -137,17 +137,17 @@ func TestCallPredictService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := PredictRequest{
-				Board:         "C_Chat",
-				Title:         "[閒聊] Test",
-				PostTime:      time.Now().Format(time.RFC3339),
-				Comments15Min: tt.comments15Min,
-				Push15Min:     tt.comments15Min - 2,
-				Boo15Min:      1,
-				HourOfDay:     20,
-				DayOfWeek:     3,
-				TitleLength:   10,
-				HasImage:      false,
-				TagType:       "閒聊",
+				Board:          "C_Chat",
+				Title:          "[閒聊] Test",
+				PostTime:       time.Now().Format(time.RFC3339),
+				CommentsWindow: tt.comments15Min,
+				PushWindow:     tt.comments15Min - 2,
+				BooWindow:      1,
+				HourOfDay:      20,
+				DayOfWeek:      3,
+				TitleLength:    10,
+				HasImage:       false,
+				TagType:        "閒聊",
 			}
 
 			prob, err := callPredictService(req)
@@ -163,20 +163,26 @@ func TestCallPredictService(t *testing.T) {
 	}
 }
 
-func TestSortByProbability(t *testing.T) {
+func TestSortByPostTime(t *testing.T) {
+	now := time.Now()
 	articles := []TrendingArticle{
-		{Probability: 0.3},
-		{Probability: 0.9},
-		{Probability: 0.5},
-		{Probability: 0.7},
+		{PostTime: now.Add(-30 * time.Minute)},
+		{PostTime: now},
+		{PostTime: now.Add(-10 * time.Minute)},
+		{PostTime: now.Add(-20 * time.Minute)},
 	}
 
-	sortByProbability(articles)
+	sortByPostTime(articles)
 
-	expected := []float64{0.9, 0.7, 0.5, 0.3}
+	expected := []time.Time{
+		now,
+		now.Add(-10 * time.Minute),
+		now.Add(-20 * time.Minute),
+		now.Add(-30 * time.Minute),
+	}
 	for i, article := range articles {
-		if article.Probability != expected[i] {
-			t.Errorf("articles[%d].Probability = %f, want %f", i, article.Probability, expected[i])
+		if !article.PostTime.Equal(expected[i]) {
+			t.Errorf("articles[%d].PostTime = %v, want %v", i, article.PostTime, expected[i])
 		}
 	}
 }

@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Response
+from pydantic import AliasChoices, BaseModel, Field
 import numpy as np
 import xgboost as xgb
 
@@ -37,6 +37,14 @@ app = FastAPI(
 model: Optional[xgb.XGBClassifier] = None
 
 
+def window_aliases(metric: str) -> AliasChoices:
+    """Accept current generic fields and legacy time-window-specific fields."""
+    return AliasChoices(
+        f"{metric}_window",
+        *(f"{metric}_{window}min" for window in SUPPORTED_WINDOWS),
+    )
+
+
 class PredictRequest(BaseModel):
     """Request schema for single article prediction"""
 
@@ -44,9 +52,9 @@ class PredictRequest(BaseModel):
     title: str
     post_time: str
     # Window-based metrics (use whatever window the server is configured for)
-    comments_window: int  # Comments in the configured time window
-    push_window: int      # Push count in the window
-    boo_window: int       # Boo count in the window
+    comments_window: int = Field(validation_alias=window_aliases("comments"))
+    push_window: int = Field(validation_alias=window_aliases("push"))
+    boo_window: int = Field(validation_alias=window_aliases("boo"))
     # Optional: early window metrics for velocity ratio (estimated if not provided)
     comments_early: Optional[int] = None
     # Time features
@@ -78,6 +86,8 @@ class BatchPredictResponse(BaseModel):
 class HealthResponse(BaseModel):
     """Response schema for health check"""
 
+    model_config = {"protected_namespaces": ()}
+
     status: str
     model_loaded: bool
     time_window: int
@@ -97,6 +107,7 @@ def load_model():
         Path(__file__).parent.parent / "models" / "viral_predictor_final.json",
         Path(__file__).parent.parent / "models" / "viral_predictor.json",
         Path(f"/app/models/viral_predictor_{TIME_WINDOW}min.json"),  # Docker path
+        Path("/app/models/viral_predictor_final.json"),  # Docker path fallback
         Path("/app/models/viral_predictor.json"),  # Docker path fallback
     ]
 
@@ -183,10 +194,13 @@ async def startup_event():
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health():
+async def health(response: Response):
     """Health check endpoint"""
+    if model is None:
+        response.status_code = 503
+
     return HealthResponse(
-        status="ok",
+        status="ok" if model is not None else "model_unloaded",
         model_loaded=model is not None,
         time_window=TIME_WINDOW,
         early_window=EARLY_WINDOW,
