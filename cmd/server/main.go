@@ -11,6 +11,10 @@ import (
 func main() {
 	r := gin.Default()
 
+	r.GET("/health", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
 	// Plurk 路由
 	r.GET("/plurk/search", func(c *gin.Context) {
 		keyword := c.Query("keyword")
