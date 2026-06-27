@@ -20,6 +20,8 @@ GET /ptt/search?board={board_name}&keyword={search_keyword}
 參數說明:
 - `board`: PTT 看板名稱 (例如: Gossiping, C_Chat, Baseball)
 - `keyword`: 搜尋關鍵字
+- `page`: PTT 搜尋結果頁碼，預設 `1`
+- `pages`: 從 `page` 開始連續抓幾頁，預設 `1`，最多 `5`
 
 範例:
 ```bash
@@ -28,6 +30,9 @@ curl "http://localhost:8080/ptt/search?board=Gossiping&keyword=問卦"
 
 # 搜尋 C_Chat 板上有關「動畫」的文章
 curl "http://localhost:8080/ptt/search?board=C_Chat&keyword=動畫"
+
+# 搜尋 Beauty 板表特爆文，從第 2 頁開始抓 3 頁
+curl "http://localhost:8080/ptt/search?board=Beauty&keyword=recommend:80&page=2&pages=3"
 ```
 
 ### PTT 熱門文章 (AI 預測)
