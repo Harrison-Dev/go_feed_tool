@@ -1,21 +1,17 @@
-FROM golang:1.24-alpine
-
+FROM golang:1.25-alpine AS build
 WORKDIR /app
-
-# 複製 go mod 文件
 COPY go.mod go.sum ./
-
-# 下載依賴
 RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+RUN gofmt -d cmd internal && test -z "$(gofmt -l cmd internal)"
+RUN go test ./internal/handler ./cmd/server && go vet ./internal/handler ./cmd/server
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/feed-tool ./cmd/server
 
-# 複製源代碼
-COPY . .
-
-# 編譯
-RUN go build -o main ./cmd/server
-
-# 暴露端口
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /app
+COPY --from=build /out/feed-tool /app/feed-tool
+USER 65534:65534
 EXPOSE 8080
-
-# 運行
-CMD ["./main"]
+CMD ["/app/feed-tool"]

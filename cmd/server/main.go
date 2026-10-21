@@ -59,34 +59,8 @@ func main() {
 		c.String(200, rss)
 	})
 
-	// PTT 熱門文章 (已爆文 + AI 預測潛在爆文)
-	// GET /ptt/trending?board=C_Chat&threshold=0.5&limit=20&mode=all
-	// mode: "viral" (已爆文), "potential" (潛在爆文), "all" (兩者都要, 預設)
-	r.GET("/ptt/trending", func(c *gin.Context) {
-		parser := handler.NewPttParser(http.DefaultClient)
-		board := c.DefaultQuery("board", "C_Chat")
-		threshold := c.DefaultQuery("threshold", "0.5")
-		limit := c.DefaultQuery("limit", "20")
-		mode := c.DefaultQuery("mode", "all")
-
-		thresholdFloat := 0.5
-		if t, err := strconv.ParseFloat(threshold, 64); err == nil {
-			thresholdFloat = t
-		}
-
-		limitInt := 20
-		if l, err := strconv.Atoi(limit); err == nil {
-			limitInt = l
-		}
-
-		rss, err := parser.FetchTrendingArticles(board, thresholdFloat, limitInt, mode)
-		if err != nil {
-			c.String(500, err.Error())
-			return
-		}
-		c.Header("Content-Type", "application/rss+xml; charset=utf-8")
-		c.String(200, rss)
-	})
+	// PTT 熱門文章：實際推文數至少 50；保留既有訂閱路徑。
+	r.GET("/ptt/trending", gin.WrapF(handler.GetPttTrending))
 
 	r.Run(":8080")
 }

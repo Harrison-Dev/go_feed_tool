@@ -1,214 +1,123 @@
 package handler
 
 import (
-	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestExtractTagType(t *testing.T) {
-	tests := []struct {
-		title    string
-		expected string
-	}{
-		{"[閒聊] 今天的動畫好好看", "閒聊"},
-		{"[爆卦] 大新聞", "爆卦"},
-		{"[問卦] 請問一下", "問卦"},
-		{"沒有標籤的標題", ""},
-		{"[Re: [閒聊] 回覆文章", "Re: [閒聊"},
-	}
+type trendingTransport func(*http.Request) (*http.Response, error)
 
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			result := extractTagType(tt.title)
-			if result != tt.expected {
-				t.Errorf("extractTagType(%q) = %q, want %q", tt.title, result, tt.expected)
-			}
-		})
-	}
-}
+func (f trendingTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-func TestParseCommentTime(t *testing.T) {
-	taipeiLoc, _ := time.LoadLocation("Asia/Taipei")
-	postTime := time.Date(2026, 1, 22, 20, 0, 0, 0, taipeiLoc)
-
-	tests := []struct {
-		name        string
-		commentTime string
-		wantMonth   int
-		wantDay     int
-		wantHour    int
-		wantMinute  int
-	}{
-		{
-			name:        "same day comment",
-			commentTime: "01/22 20:05",
-			wantMonth:   1,
-			wantDay:     22,
-			wantHour:    20,
-			wantMinute:  5,
-		},
-		{
-			name:        "with IP prefix",
-			commentTime: "123.456.78.90 01/22 20:10",
-			wantMonth:   1,
-			wantDay:     22,
-			wantHour:    20,
-			wantMinute:  10,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseCommentTime(postTime, tt.commentTime)
-			if result.Month() != time.Month(tt.wantMonth) {
-				t.Errorf("month = %d, want %d", result.Month(), tt.wantMonth)
-			}
-			if result.Day() != tt.wantDay {
-				t.Errorf("day = %d, want %d", result.Day(), tt.wantDay)
-			}
-			if result.Hour() != tt.wantHour {
-				t.Errorf("hour = %d, want %d", result.Hour(), tt.wantHour)
-			}
-			if result.Minute() != tt.wantMinute {
-				t.Errorf("minute = %d, want %d", result.Minute(), tt.wantMinute)
-			}
-		})
-	}
-}
-
-func TestCallPredictService(t *testing.T) {
-	// Create mock prediction service
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/predict" {
-			t.Errorf("Expected /predict, got %s", r.URL.Path)
+func TestTrendingThresholdSortingAndLimit(t *testing.T) {
+	comments := func(n int) []Comment {
+		cs := make([]Comment, n)
+		for i := range cs {
+			cs[i].Type = "推"
 		}
-		if r.Method != "POST" {
-			t.Errorf("Expected POST, got %s", r.Method)
-		}
-
-		// Decode request
-		var req PredictRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("Failed to decode request: %v", err)
-		}
-
-		// Return mock probability based on engagement
-		prob := float64(req.CommentsWindow) / 100.0
-		if prob > 1.0 {
-			prob = 0.95
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(PredictResponse{Probability: prob})
-	}))
-	defer mockServer.Close()
-
-	// Override service URL
-	originalURL := PredictServiceURL
-	PredictServiceURL = mockServer.URL
-	defer func() { PredictServiceURL = originalURL }()
-
-	tests := []struct {
-		name           string
-		comments15Min  int
-		expectedProb   float64
-		expectedMinErr bool
-	}{
-		{
-			name:          "high engagement",
-			comments15Min: 50,
-			expectedProb:  0.5,
-		},
-		{
-			name:          "low engagement",
-			comments15Min: 5,
-			expectedProb:  0.05,
-		},
-		{
-			name:          "very high engagement",
-			comments15Min: 150,
-			expectedProb:  0.95,
-		},
+		return append(cs, Comment{Type: "噓"}, Comment{Type: "→"})
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := PredictRequest{
-				Board:          "C_Chat",
-				Title:          "[閒聊] Test",
-				PostTime:       time.Now().Format(time.RFC3339),
-				CommentsWindow: tt.comments15Min,
-				PushWindow:     tt.comments15Min - 2,
-				BooWindow:      1,
-				HourOfDay:      20,
-				DayOfWeek:      3,
-				TitleLength:    10,
-				HasImage:       false,
-				TagType:        "閒聊",
-			}
-
-			prob, err := callPredictService(req)
-			if err != nil {
-				t.Errorf("callPredictService() error = %v", err)
-				return
-			}
-
-			if prob != tt.expectedProb {
-				t.Errorf("probability = %f, want %f", prob, tt.expectedProb)
-			}
-		})
-	}
-}
-
-func TestSortByPostTime(t *testing.T) {
 	now := time.Now()
 	articles := []TrendingArticle{
-		{PostTime: now.Add(-30 * time.Minute)},
-		{PostTime: now},
-		{PostTime: now.Add(-10 * time.Minute)},
-		{PostTime: now.Add(-20 * time.Minute)},
+		{Article: Article{Url: "49"}, PostTime: now, Comments: comments(49)},
+		{Article: Article{Url: "50"}, PostTime: now.Add(-24 * time.Hour), Comments: comments(50)},
+		{Article: Article{Url: "100"}, PostTime: now.Add(-time.Hour), Comments: comments(100)},
+		{Article: Article{Url: "100"}, PostTime: now.Add(-time.Hour), Comments: comments(100)},
 	}
-
-	sortByPostTime(articles)
-
-	expected := []time.Time{
-		now,
-		now.Add(-10 * time.Minute),
-		now.Add(-20 * time.Minute),
-		now.Add(-30 * time.Minute),
+	got := filterTrendingArticles(articles, 20)
+	if len(got) != 2 || got[0].Url != "100" || got[1].Url != "50" || got[1].PushCount != 50 {
+		t.Fatalf("unexpected selection: %+v", got)
 	}
-	for i, article := range articles {
-		if !article.PostTime.Equal(expected[i]) {
-			t.Errorf("articles[%d].PostTime = %v, want %v", i, article.PostTime, expected[i])
-		}
+	if got := filterTrendingArticles(articles, 1); len(got) != 1 || got[0].Url != "100" {
+		t.Fatalf("limit/order: %+v", got)
+	}
+	if got := filterTrendingArticles(articles, -1); len(got) != 1 {
+		t.Fatalf("invalid limit should be bounded: %d", len(got))
 	}
 }
 
-func TestGetPttTrendingHandler(t *testing.T) {
-	// Create mock prediction service
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(PredictResponse{Probability: 0.75})
-	}))
-	defer mockServer.Close()
-
-	// Override service URL
-	originalURL := PredictServiceURL
-	PredictServiceURL = mockServer.URL
-	defer func() { PredictServiceURL = originalURL }()
-
-	// Note: Full integration test would require mocking PTT responses
-	// This is a basic structure test
-	t.Run("handler exists and accepts parameters", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/ptt/trending?board=C_Chat&threshold=0.6&limit=10", nil)
-		w := httptest.NewRecorder()
-
-		// Just verify the handler doesn't panic on basic invocation
-		// Full test would mock HTTP client
-		_ = req
-		_ = w
+func TestTrendingEndpointKeepsLegacyURLsWithoutPrediction(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	http.DefaultTransport = trendingTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host != "www.ptt.cc" {
+			t.Fatalf("unexpected non-PTT request: %s", r.URL)
+		}
+		if r.Header.Get("Cookie") != "over18=1" {
+			t.Fatal("missing over18 cookie")
+		}
+		var html string
+		switch r.URL.Path {
+		case "/bbs/C_Chat/index.html":
+			for _, n := range []int{49, 50, 100} {
+				html += fmt.Sprintf(`<div class="r-ent"><div class="nrec"><span>%d</span></div><div class="title"><a href="/bbs/C_Chat/M.%d.html">post-%d</a></div></div>`, n, n, n)
+			}
+		case "/bbs/C_Chat/M.49.html", "/bbs/C_Chat/M.50.html", "/bbs/C_Chat/M.100.html":
+			var n int
+			fmt.Sscanf(r.URL.Path, "/bbs/C_Chat/M.%d.html", &n)
+			html = `<div id="main-content"><div class="article-metaline"><span class="article-meta-value">author</span></div><div class="article-metaline"><span class="article-meta-value">Fri Oct 2 15:04:05 2026</span></div>body`
+			for i := 0; i < n; i++ {
+				html += `<div class="push"><span class="push-tag">推 </span><span class="push-userid">user</span><span class="push-content">: good</span></div>`
+			}
+			html += `<div class="push"><span class="push-tag">噓 </span></div><div class="push"><span class="push-tag">→ </span></div></div>`
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(html)), Header: make(http.Header)}, nil
 	})
+	for _, query := range []string{"", "?mode=potential&threshold=0.99", "?mode=viral&limit=-1", "?mode=all&limit=1"} {
+		t.Run(query, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			GetPttTrending(w, httptest.NewRequest("GET", "/ptt/trending"+query, nil))
+			if w.Code != 200 {
+				t.Fatalf("status %d: %s", w.Code, w.Body.String())
+			}
+			var rss struct {
+				Channel struct {
+					Title string `xml:"title"`
+					Items []struct {
+						Title string `xml:"title"`
+						Link  string `xml:"link"`
+					} `xml:"item"`
+				} `xml:"channel"`
+			}
+			if err := xml.Unmarshal(w.Body.Bytes(), &rss); err != nil {
+				t.Fatal(err)
+			}
+			expected := 2
+			if strings.Contains(query, "limit=") {
+				expected = 1
+			}
+			if len(rss.Channel.Items) != expected {
+				t.Fatalf("got %d items, want %d", len(rss.Channel.Items), expected)
+			}
+			if !strings.Contains(rss.Channel.Title, "50 推以上") {
+				t.Fatal(rss.Channel.Title)
+			}
+			if rss.Channel.Items[0].Title != "[50推] post-50" {
+				t.Fatal(rss.Channel.Items[0].Title)
+			}
+			if !strings.HasPrefix(rss.Channel.Items[0].Link, "https://bbs.beptt.cc/") {
+				t.Fatal(rss.Channel.Items[0].Link)
+			}
+		})
+	}
+}
+
+func TestTrendingUpstreamError(t *testing.T) {
+	p := NewPttParser(&http.Client{Transport: trendingTransport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 503, Body: io.NopCloser(strings.NewReader("unavailable"))}, nil
+	})})
+	if _, err := p.FetchTrendingArticles("C_Chat", 20); err == nil {
+		t.Fatal("expected upstream status error")
+	}
+	if _, err := p.FetchTrendingArticles("", 20); err == nil {
+		t.Fatal("expected empty board error")
+	}
 }
